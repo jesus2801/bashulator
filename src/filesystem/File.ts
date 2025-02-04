@@ -3,8 +3,7 @@ import { ErrorMsg } from "./Messages";
 import PermissionManager from "./PermissionManager";
 
 export default class LinuxFile {
-  private _name: string = "";
-  private _owner: string = "";
+  private _name: string = ""; private _owner: string = "";
   private _group: string = "";
 
   //TODO: add the sticky bit implementation, SGID | SUID
@@ -23,6 +22,7 @@ export default class LinuxFile {
   //TODO: modify all the functions in order to work properly
   //when this option is true
   isSymLink: boolean;
+  //TODO: implement support for hard links
   symLinkTarget?: string;
 
   readonly isDir: boolean;
