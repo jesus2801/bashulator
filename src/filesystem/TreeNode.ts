@@ -1,27 +1,26 @@
 import LinuxFile from "./File";
 
 export default class TreeNode {
-  value: LinuxFile;
+  file: LinuxFile;
+  parent: TreeNode;
   children: Map<string, TreeNode>;
 
-  constructor(value: LinuxFile) {
-    this.value = value;
+  constructor(file: LinuxFile, parent: TreeNode) {
+    this.file = file;
+    this.parent = parent;
     this.children = new Map();
   }
 
-  //TODO: when renaming 
-  public get name() {
-    return this.value.name;
-  }
+  addChild(file: LinuxFile): TreeNode {
+    const childNode = new TreeNode(file, this);
 
-  addChild(key: string, value: LinuxFile): TreeNode {
-    const childNode = new TreeNode(value);
-    this.children.set(key, childNode);
+    this.children.set(file.name, childNode);
+
     return childNode;
   }
 
-  getChild(key: string): TreeNode | undefined {
-    return this.children.get(key);
+  getChild(name: string): TreeNode | undefined {
+    return this.children.get(name);
   }
 
   listChildren(): TreeNode[] {
