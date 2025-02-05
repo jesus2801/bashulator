@@ -26,4 +26,19 @@ export default class TreeNode {
   listChildren(): TreeNode[] {
     return Array.from(this.children.values());
   }
+
+  public get fullPath() {
+    let path: string = this.file.name;
+
+    let currentNode: TreeNode = this;
+    while (currentNode.parent !== currentNode) {
+
+      path = currentNode.file.name + "/" + path;
+      currentNode = currentNode.parent;
+    }
+    path = "/" + path;
+
+    return path
+  }
+
 }

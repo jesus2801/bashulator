@@ -5,6 +5,7 @@ import PermissionManager from "./PermissionManager";
 import TreeNode from "./TreeNode";
 
 interface FileOptions {
+  inode: number;
   name: string;
   owner: string;
   group: string;
@@ -31,14 +32,17 @@ export default class LinuxFile {
   accessedAt: Date; // last time the file was accesed
   changedAt: Date; //when the content or any related info changes
 
+  readonly inode: number;
+
   //TODO: modify all the functions in order to work properly
   //when the file is a symbolic link
   //TODO: implement support for hard links
-  symLinkTarget?: TreeNode;
+  private _symLinkTarget?: TreeNode;
 
   private _fileType: FileType = FileType.RegularFile;
 
   constructor({
+    inode,
     name,
     owner,
     group,
@@ -50,6 +54,7 @@ export default class LinuxFile {
     this.owner = owner;
     this.group = group;
     this.name = name;
+    this.inode = inode;
 
     //TODO: modify this for symbolic links only
     //when changing the link target
@@ -62,8 +67,6 @@ export default class LinuxFile {
     this.fileType = fileType;
 
     if (this.fileType === FileType.SymbolicLink) {
-      //TODO: check if the target exists
-      ///TODO: check that there is no cycle in the calls
       if (symLinkTarget)
         this.symLinkTarget = symLinkTarget;
       else
@@ -84,6 +87,7 @@ export default class LinuxFile {
   }
 
   public set name(new_name: string) {
+    //TODO: check if the name exists in the current folder
     if (new_name.length > 255) {
       throw new FileSystemError(
         "File name too long",
@@ -214,4 +218,27 @@ export default class LinuxFile {
   public set fileType(new_fileType) {
     this._fileType = new_fileType;
   }
+
+  public get symLinkTarget(): TreeNode | undefined {
+    return this._symLinkTarget;
+  }
+
+  public set symLinkTarget(new_target: TreeNode) {
+    //TODO: check if the target exists
+
+    let currentNode: TreeNode = new_target;
+    const visitedNodes = new Map<number, boolean>();
+
+    while (currentNode.file.fileType === FileType.SymbolicLink) {
+      if (visitedNodes.has(currentNode.file.inode)) {
+        throw new FileSystemError("Symbolic link target generates a cycle", "");
+      }
+
+      currentNode = currentNode.file.symLinkTarget as TreeNode;
+      visitedNodes.set(currentNode.file.inode, true)
+    }
+
+    this._symLinkTarget = new_target;
+  }
+
 }

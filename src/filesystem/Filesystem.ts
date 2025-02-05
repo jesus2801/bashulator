@@ -6,12 +6,14 @@ export default class Filesystem {
   root: TreeNode;
 
   constructor() {
-    this.root = new TreeNode(new LinuxFile({
+    const rootFile = new LinuxFile({
       name: "/",
       owner: "root",
       group: "root",
-      fileType: FileType.Directory
-    }), null as unknown as TreeNode);
+      fileType: FileType.Directory,
+      inode: 1
+    })
+    this.root = new TreeNode(rootFile, null as unknown as TreeNode);
     this.root.parent = this.root;
 
     //TODO: create basic files of a linux distro like etc, dev, mnt, bin, sbin...
