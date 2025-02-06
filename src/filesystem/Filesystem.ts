@@ -1,20 +1,18 @@
-import LinuxFile from "./File";
+import LinuxFile from "./LinuxFile";
 import { FileType } from "./Interfaces";
-import TreeNode from "./TreeNode";
 
 export default class Filesystem {
-  root: TreeNode;
+  root: LinuxFile;
 
   constructor() {
-    const rootFile = new LinuxFile({
+    this.root = new LinuxFile({
       name: "/",
       owner: "root",
       group: "root",
       fileType: FileType.Directory,
-      inode: 1
+      inode: 1,
+      parent: null as unknown as LinuxFile
     })
-    this.root = new TreeNode(rootFile, null as unknown as TreeNode);
-    this.root.parent = this.root;
 
     //TODO: create basic files of a linux distro like etc, dev, mnt, bin, sbin...
   }
