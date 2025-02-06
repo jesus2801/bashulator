@@ -2,7 +2,6 @@ import FileSystemError from "./Error";
 import { FileType } from "./Interfaces";
 import { ErrorMsg } from "./Messages";
 import PermissionManager from "./PermissionManager";
-import TreeNode from "./TreeNode";
 
 interface FileOptions {
   inode: number;
@@ -10,8 +9,9 @@ interface FileOptions {
   owner: string;
   group: string;
   content?: string;
-  symLinkTarget?: TreeNode;
+  symLinkTarget?: LinuxFile;
   fileType?: FileType;
+  parent: LinuxFile;
 }
 
 export default class LinuxFile {
@@ -37,20 +37,29 @@ export default class LinuxFile {
   //TODO: modify all the functions in order to work properly
   //when the file is a symbolic link
   //TODO: implement support for hard links
-  private _symLinkTarget?: TreeNode;
+  private _symLinkTarget?: LinuxFile;
 
-  private _fileType: FileType = FileType.RegularFile;
+  readonly fileType: FileType = FileType.RegularFile;
+
+  parent: LinuxFile;
+  children: Map<string, LinuxFile>;
+
 
   constructor({
     inode,
     name,
     owner,
     group,
+    parent,
     content = "",
     fileType = FileType.RegularFile,
     symLinkTarget,
   }: FileOptions
   ) {
+    //TODO: validate the parent is a Dir
+    this.parent = parent;
+    this.children = new Map();
+
     this.owner = owner;
     this.group = group;
     this.name = name;
@@ -58,7 +67,6 @@ export default class LinuxFile {
 
     //TODO: modify this for symbolic links only
     //when changing the link target
-    //TODO: implement: change the link target
     this.createdAt = new Date();
     this.modifiedAt = new Date();
     this.accessedAt = new Date();
@@ -85,6 +93,37 @@ export default class LinuxFile {
       this.permissions = "rw-rw-r--";
     }
   }
+
+  addChild(file: LinuxFile): LinuxFile {
+    //TODO: validate that the file is a Dir
+    this.children.set(file.name, file);
+
+    return file;
+  }
+
+  getChild(name: string): LinuxFile | undefined {
+    return this.children.get(name);
+  }
+
+  listChildren(): LinuxFile[] {
+    return Array.from(this.children.values());
+  }
+
+  public get fullPath() {
+    let path: string = this.name;
+
+    let currentNode: LinuxFile = this;
+    while (currentNode.parent !== currentNode) {
+
+      path = currentNode.name + "/" + path;
+      currentNode = currentNode.parent;
+    }
+
+    path = "/" + path;
+
+    return path
+  }
+
 
   public set name(new_name: string) {
     //TODO: check if the name exists in the current folder
@@ -117,8 +156,12 @@ export default class LinuxFile {
       );
     }
 
+    if (this.parent.getChild(new_name)) {
+      throw new FileSystemError("File already exists", "You are trying to assign an existing name for a new File instance");
+    }
+
     //TODO: in theory, any other char can be used in a file name
-    //so in further updates there is any problem with that, validate those chars here.
+    //so if in further updates there is any problem with that, I'd validate those chars here.
 
     this.changedAt = new Date();
     this._name = new_name;
@@ -129,13 +172,14 @@ export default class LinuxFile {
   }
 
   public get group() {
+    //TODO: check that the name does not exists yet
     this.changedAt = new Date();
     return this._group;
   }
 
   public set group(new_group: string) {
     if (this.fileType === FileType.SymbolicLink) {
-      this.symLinkTarget!.file.group = new_group;
+      this.symLinkTarget!.group = new_group;
       return;
     }
 
@@ -145,7 +189,7 @@ export default class LinuxFile {
 
   public get content() {
     if (this.fileType === FileType.SymbolicLink)
-      return this.symLinkTarget!.file.content;
+      return this.symLinkTarget!.content;
 
     //updates the last accessed date
     this.accessedAt = new Date();
@@ -156,7 +200,7 @@ export default class LinuxFile {
 
   public set content(new_content: string) {
     if (this.fileType === FileType.SymbolicLink) {
-      this.symLinkTarget!.file.content = new_content;
+      this.symLinkTarget!.content = new_content;
       return;
     }
 
@@ -171,7 +215,7 @@ export default class LinuxFile {
 
   public set permissions(new_permissions: string) {
     if (this.fileType === FileType.SymbolicLink) {
-      this.symLinkTarget!.file.permissions = new_permissions;
+      this.symLinkTarget!.permissions = new_permissions;
       return;
     }
 
@@ -190,14 +234,14 @@ export default class LinuxFile {
 
   public get size(): number {
     if (this.fileType === FileType.SymbolicLink)
-      return this.symLinkTarget!.file.size;
+      return this.symLinkTarget!.size;
 
     return this.content.length + 1;
   }
 
   public set owner(new_owner: string) {
     if (this.fileType === FileType.SymbolicLink) {
-      this.symLinkTarget!.file.owner = new_owner;
+      this.symLinkTarget!.owner = new_owner;
       return;
     }
 
@@ -210,35 +254,53 @@ export default class LinuxFile {
     return this._owner;
   }
 
-  public get fileType() {
-    return this._fileType;
-  }
-
-  //TODO: How can I change the file type in real scenario? idk
-  public set fileType(new_fileType) {
-    this._fileType = new_fileType;
-  }
-
-  public get symLinkTarget(): TreeNode | undefined {
+  public get symLinkTarget(): LinuxFile | undefined {
     return this._symLinkTarget;
   }
 
-  public set symLinkTarget(new_target: TreeNode) {
-    //TODO: check if the target exists
+  public set symLinkTarget(new_target: LinuxFile) {
+    //NOTE: it does not matter if the target does not exist
 
-    let currentNode: TreeNode = new_target;
+    //check that there is no cycle generated by this new target
+    let currentNode: LinuxFile = new_target;
     const visitedNodes = new Map<number, boolean>();
 
-    while (currentNode.file.fileType === FileType.SymbolicLink) {
-      if (visitedNodes.has(currentNode.file.inode)) {
+    while (currentNode.fileType === FileType.SymbolicLink) {
+      if (visitedNodes.has(currentNode.inode)) {
         throw new FileSystemError("Symbolic link target generates a cycle", "");
       }
 
-      currentNode = currentNode.file.symLinkTarget as TreeNode;
-      visitedNodes.set(currentNode.file.inode, true)
+      currentNode = currentNode.symLinkTarget as LinuxFile;
+      visitedNodes.set(currentNode.inode, true)
     }
 
     this._symLinkTarget = new_target;
   }
 
+  //FIX: this functions is not probably useful here, but I know it would in another place
+  private checkExistance(fullPath: string): boolean {
+    //TODO: think if it is necessary to validate the path (?)
+    let currentNode = this.root;
+    const names = fullPath.split("/")
+    names.shift()
+
+    while (names.length) {
+      const nextNode = currentNode.getChild(names[0]);
+      if (!nextNode)
+        return false
+
+      currentNode = nextNode;
+      names.shift()
+    }
+
+    return true
+  }
+
+  public get root() {
+    let currentNode: LinuxFile = this;
+    while (currentNode.parent !== currentNode)
+      currentNode = currentNode.parent;
+
+    return currentNode;
+  }
 }
